@@ -1,15 +1,18 @@
 package aws
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"time"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/pquerna/otp/totp"
 )
@@ -20,12 +23,12 @@ const (
 
 // NewAuthenticatedSession creates an AWS session following to standard AWS authentication workflow.
 // If AuthAssumeIamRoleEnvVar environment variable is set, assumes IAM role specified in it.
-func NewAuthenticatedSession(region string) (*session.Session, error) {
-	if assumeRoleArn, ok := os.LookupEnv(AuthAssumeRoleEnvVar); ok {
-		return NewAuthenticatedSessionFromRole(region, assumeRoleArn)
-	} else {
-		return NewAuthenticatedSessionFromDefaultCredentials(region)
-	}
+func NewAuthenticatedSession(region string) (*awsv2.Config, error) {
+	// if assumeRoleArn, ok := os.LookupEnv(AuthAssumeRoleEnvVar); ok {
+	// 	return NewAuthenticatedSessionFromRole(region, assumeRoleArn)
+	// } else {
+	return NewAuthenticatedSessionFromDefaultCredentialsV2(region)
+	// }
 }
 
 // NewAuthenticatedSessionFromDefaultCredentials gets an AWS Session, checking that the user has credentials properly configured in their environment.
@@ -47,6 +50,15 @@ func NewAuthenticatedSessionFromDefaultCredentials(region string) (*session.Sess
 	}
 
 	return sess, nil
+}
+
+func NewAuthenticatedSessionFromDefaultCredentialsV2(region string) (*awsv2.Config, error) {
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	if err != nil {
+		return nil, CredentialsError{UnderlyingErr: err}
+	}
+
+	return &cfg, nil
 }
 
 // NewAuthenticatedSessionFromRole returns a new AWS Session after assuming the
@@ -91,7 +103,7 @@ func CreateAwsSessionWithCreds(region string, accessKeyID string, secretAccessKe
 }
 
 // CreateAwsSessionWithMfa creates a new AWS session authenticated using an MFA token retrieved using the given STS client and MFA Device.
-func CreateAwsSessionWithMfa(region string, stsClient *sts.STS, mfaDevice *iam.VirtualMFADevice) (*session.Session, error) {
+func CreateAwsSessionWithMfa(region string, stsClient *sts.STS, mfaDevice *types.VirtualMFADevice) (*session.Session, error) {
 	tokenCode, err := GetTimeBasedOneTimePassword(mfaDevice)
 	if err != nil {
 		return nil, err
@@ -131,7 +143,7 @@ func CreateAwsCredentialsWithSessionToken(accessKeyID, secretAccessKey, sessionT
 }
 
 // GetTimeBasedOneTimePassword gets a One-Time Password from the given mfaDevice. Per the RFC 6238 standard, this value will be different every 30 seconds.
-func GetTimeBasedOneTimePassword(mfaDevice *iam.VirtualMFADevice) (string, error) {
+func GetTimeBasedOneTimePassword(mfaDevice *types.VirtualMFADevice) (string, error) {
 	base32StringSeed := string(mfaDevice.Base32StringSeed)
 
 	otp, err := totp.GenerateCode(base32StringSeed, time.Now())
@@ -143,8 +155,8 @@ func GetTimeBasedOneTimePassword(mfaDevice *iam.VirtualMFADevice) (string, error
 }
 
 // ReadPasswordPolicyMinPasswordLength returns the minimal password length.
-func ReadPasswordPolicyMinPasswordLength(iamClient *iam.IAM) (int, error) {
-	output, err := iamClient.GetAccountPasswordPolicy(&iam.GetAccountPasswordPolicyInput{})
+func ReadPasswordPolicyMinPasswordLength(iamClient *iam.Client) (int, error) {
+	output, err := iamClient.GetAccountPasswordPolicy(context.Background(), &iam.GetAccountPasswordPolicyInput{})
 	if err != nil {
 		return -1, err
 	}
