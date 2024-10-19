@@ -169,6 +169,7 @@ jobs:
               --dest-path ./cmd/bin \
               --ld-flags "-X main.VERSION=$CIRCLE_TAG -extldflags '-static'"
           when: always
+          no_output_timeout: 20m
 
       - persist_to_workspace:
           root: /home/circleci
