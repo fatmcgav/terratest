@@ -179,9 +179,9 @@ jobs:
   # run tests with terraform binary
   test_terraform:
     <<: *defaults
-    resource_class: large
+    resource_class: xlarge
     steps:
-      - attach_workspace:
+      - attach_worksace:
           at: /home/circleci
 
       - run:
