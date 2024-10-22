@@ -110,7 +110,7 @@ version: 2
 jobs:
   setup:
     <<: *env
-    resource_class: large
+    resource_class: xlarge
     docker:
       - image: cimg/python:3.10.2
 
